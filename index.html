@@ -3,104 +3,123 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Bootstrap + JS en un archivo</title>
-    
-    <!-- Bootstrap 5 CSS -->
+    <title>SQL Tareas Diarias</title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    
+    <!-- Importamos sql.js -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
     <style>
-        /* Estilos personalizados opcionales */
-        body {
-            background-color: #f8f9fa;
-            padding-top: 50px;
-        }
-        .task-done {
-            text-decoration: line-through;
-            color: #6c757d;
-        }
+        body { background-color: #eef2f7; padding-top: 50px; font-family: 'Segoe UI', sans-serif; }
+        .completed { text-decoration: line-through; color: #adb5bd; }
+        .card { border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
+        .sql-badge { font-size: 0.7rem; background: #336791; color: white; padding: 3px 8px; border-radius: 10px; }
     </style>
 </head>
 <body>
 
-    <div class="container">
-        <div class="row justify-content-center">
-            <div class="col-md-6">
-                <div class="card shadow">
-                    <div class="card-header bg-primary text-white">
-                        <h3 class="mb-0">Mi Lista de Tareas</h3>
-                    </div>
-                    <div class="card-body">
-                        <!-- Formulario de entrada -->
-                        <div class="input-group mb-3">
-                            <input type="text" id="taskInput" class="form-control" placeholder="¿Qué hay que hacer?" aria-label="Nueva tarea">
-                            <button class="btn btn-success" type="button" id="addButton">Agregar</button>
-                        </div>
-
-                        <!-- Lista de elementos -->
-                        <ul class="list-group" id="taskList">
-                            <!-- Las tareas aparecerán aquí dinámicamente -->
-                        </ul>
-                    </div>
-                    <div class="card-footer text-center">
-                        <small class="text-muted">Bootstrap + Vanilla JS</small>
-                    </div>
+<div class="container">
+    <div class="row justify-content-center">
+        <div class="col-md-7">
+            <div class="card p-4">
+                <div class="d-flex justify-content-between align-items-center mb-4">
+                    <h2 class="m-0">Mis Tareas</h2>
+                    <span class="sql-badge">Motor: SQLite 3</span>
                 </div>
+                
+                <div class="input-group mb-3">
+                    <input type="text" id="taskInput" class="form-control" placeholder="Escribe una tarea SQL...">
+                    <button class="btn btn-dark" type="button" onclick="addTask()">Agregar</button>
+                </div>
+
+                <ul id="taskList" class="list-group list-group-flush">
+                    <!-- Las tareas se renderizan aquí -->
+                </ul>
             </div>
+            <p class="text-center mt-3 text-muted small">Nota: Al ser SQLite en memoria, los datos se reinician al recargar la página.</p>
         </div>
     </div>
+</div>
 
-    <!-- Bootstrap 5 JS Bundle (incluye Popper) -->
-    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+    let db;
 
-    <!-- Tu Lógica de JavaScript -->
-    <script>
-        document.addEventListener('DOMContentLoaded', () => {
-            const input = document.getElementById('taskInput');
-            const btn = document.getElementById('addButton');
-            const list = document.getElementById('taskList');
+    // Inicializar SQLite
+    async function initDatabase() {
+        const config = { locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` };
+        const SQL = await initSqlJs(config);
+        
+        // Creamos la base de datos en memoria
+        db = new SQL.Database();
 
-            // Función para añadir tarea
-            const addTask = () => {
-                const text = input.value.trim();
-                
-                if (text !== "") {
-                    const li = document.createElement('li');
-                    li.className = 'list-group-item d-flex justify-content-between align-items-center animate__animated animate__fadeIn';
-                    
-                    li.innerHTML = `
-                        <span>${text}</span>
-                        <div>
-                            <button class="btn btn-sm btn-outline-secondary me-2 done-btn">✓</button>
-                            <button class="btn btn-sm btn-outline-danger delete-btn">✕</button>
-                        </div>
-                    `;
+        // Ejecutamos SQL para crear la tabla
+        db.run("CREATE TABLE IF NOT EXISTS tareas (id INTEGER PRIMARY KEY AUTOINCREMENT, texto TEXT, cumplida INTEGER DEFAULT 0);");
+        
+        console.log("Base de datos SQLite lista.");
+        renderTasks();
+    }
 
-                    list.appendChild(li);
-                    input.value = ""; // Limpiar input
-                    input.focus();
+    function addTask() {
+        const input = document.getElementById('taskInput');
+        const text = input.value.trim();
+        
+        if (text !== "") {
+            // SQL INSERT
+            db.run("INSERT INTO tareas (texto) VALUES (?)", [text]);
+            input.value = "";
+            renderTasks();
+        }
+    }
 
-                    // Evento para marcar como hecho
-                    li.querySelector('.done-btn').addEventListener('click', () => {
-                        li.querySelector('span').classList.toggle('task-done');
-                    });
+    function toggleTask(id, currentState) {
+        const newState = currentState === 0 ? 1 : 0;
+        // SQL UPDATE
+        db.run("UPDATE tareas SET cumplida = ? WHERE id = ?", [newState, id]);
+        renderTasks();
+    }
 
-                    // Evento para borrar
-                    li.querySelector('.delete-btn').addEventListener('click', () => {
-                        li.remove();
-                    });
-                } else {
-                    alert("Por favor, escribe algo.");
-                }
-            };
+    function deleteTask(id) {
+        // SQL DELETE
+        db.run("DELETE FROM tareas WHERE id = ?", [id]);
+        renderTasks();
+    }
 
-            // Escuchar click
-            btn.addEventListener('click', addTask);
+    function renderTasks() {
+        const list = document.getElementById('taskList');
+        list.innerHTML = "";
 
-            // Escuchar tecla Enter
-            input.addEventListener('keypress', (e) => {
-                if (e.key === 'Enter') addTask();
+        // SQL SELECT
+        const res = db.exec("SELECT * FROM tareas ORDER BY id DESC");
+        
+        if (res.length > 0) {
+            const columns = res[0].columns;
+            const values = res[0].values;
+
+            values.forEach(row => {
+                const id = row[0];
+                const texto = row[1];
+                const cumplida = row[2];
+
+                const li = document.createElement('li');
+                li.className = 'list-group-item d-flex justify-content-between align-items-center border-0 px-0';
+                li.innerHTML = `
+                    <div role="button" onclick="toggleTask(${id}, ${cumplida})">
+                        <span class="${cumplida ? 'completed' : ''}">
+                            ${cumplida ? '✅' : '🕒'} ${texto}
+                        </span>
+                    </div>
+                    <button class="btn btn-outline-danger btn-sm border-0" onclick="deleteTask(${id})">✕</button>
+                `;
+                list.appendChild(li);
             });
-        });
-    </script>
+        }
+    }
+
+    // Iniciar la app
+    initDatabase();
+
+    document.getElementById('taskInput').addEventListener('keypress', (e) => {
+        if (e.key === 'Enter') addTask();
+    });
+</script>
+
 </body>
 </html>
