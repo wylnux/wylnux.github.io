@@ -3,122 +3,184 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>SQL Tareas Diarias</title>
+    <title>SQL Daily Tasks - Persistente</title>
+    <!-- Bootstrap 5 CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
-    <!-- Importamos sql.js -->
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+    <!-- sql.js Library -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/sql-wasm.js"></script>
     <style>
-        body { background-color: #eef2f7; padding-top: 50px; font-family: 'Segoe UI', sans-serif; }
-        .completed { text-decoration: line-through; color: #adb5bd; }
-        .card { border: none; border-radius: 20px; box-shadow: 0 10px 30px rgba(0,0,0,0.05); }
-        .sql-badge { font-size: 0.7rem; background: #336791; color: white; padding: 3px 8px; border-radius: 10px; }
+        body { 
+            font-family: 'Inter', sans-serif; 
+            background-color: #f4f7f6; 
+            padding-top: 60px; 
+        }
+        .container { max-width: 600px; }
+        .card { 
+            border: none; 
+            border-radius: 12px; 
+            box-shadow: 0 10px 25px rgba(0,0,0,0.05); 
+        }
+        .completed { 
+            text-decoration: line-through; 
+            color: #adb5bd; 
+        }
+        .list-group-item {
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+        .list-group-item:hover {
+            background-color: #fcfcfc;
+            border-left: 4px solid #0d6efd;
+        }
+        .status-badge { font-size: 0.75rem; vertical-align: middle; }
     </style>
 </head>
 <body>
 
 <div class="container">
-    <div class="row justify-content-center">
-        <div class="col-md-7">
-            <div class="card p-4">
-                <div class="d-flex justify-content-between align-items-center mb-4">
-                    <h2 class="m-0">Mis Tareas</h2>
-                    <span class="sql-badge">Motor: SQLite 3</span>
-                </div>
-                
-                <div class="input-group mb-3">
-                    <input type="text" id="taskInput" class="form-control" placeholder="Escribe una tarea SQL...">
-                    <button class="btn btn-dark" type="button" onclick="addTask()">Agregar</button>
-                </div>
-
-                <ul id="taskList" class="list-group list-group-flush">
-                    <!-- Las tareas se renderizan aquí -->
-                </ul>
-            </div>
-            <p class="text-center mt-3 text-muted small">Nota: Al ser SQLite en memoria, los datos se reinician al recargar la página.</p>
+    <div class="card p-4">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+            <h3 class="fw-bold m-0 text-primary">Mi Diario SQL</h3>
+            <span id="dbStatus" class="badge bg-secondary status-badge">Cargando SQLite...</span>
         </div>
+
+        <!-- Input Section -->
+        <div class="input-group mb-4">
+            <input type="text" id="taskInput" class="form-control form-control-lg" placeholder="Nueva tarea..." autofocus>
+            <button class="btn btn-primary px-4" type="button" onclick="addTask()">Agregar</button>
+        </div>
+
+        <!-- Filter / Stats -->
+        <div class="d-flex justify-content-between mb-3 small text-muted">
+            <span id="taskCount">0 tareas registradas</span>
+            <button class="btn btn-sm btn-link text-danger text-decoration-none p-0" onclick="clearAll()">Borrar todo</button>
+        </div>
+
+        <!-- Task List -->
+        <ul id="taskList" class="list-group list-group-flush">
+            <!-- Render dinámico -->
+        </ul>
     </div>
+    <p class="text-center mt-4 text-muted small">
+        Impulsado por <strong>SQLite WASM</strong> + LocalStorage
+    </p>
 </div>
 
 <script>
     let db;
 
-    // Inicializar SQLite
-    async function initDatabase() {
-        const config = { locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}` };
-        const SQL = await initSqlJs(config);
-        
-        // Creamos la base de datos en memoria
-        db = new SQL.Database();
+    // --- INICIALIZACIÓN ---
+    async function init() {
+        try {
+            const config = {
+                locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.8.0/${file}`
+            };
+            const SQL = await initSqlJs(config);
+            
+            const savedData = localStorage.getItem('sqlite_tasks_db');
 
-        // Ejecutamos SQL para crear la tabla
-        db.run("CREATE TABLE IF NOT EXISTS tareas (id INTEGER PRIMARY KEY AUTOINCREMENT, texto TEXT, cumplida INTEGER DEFAULT 0);");
-        
-        console.log("Base de datos SQLite lista.");
-        renderTasks();
+            if (savedData) {
+                // Recuperar DB guardada: Base64 -> Uint8Array
+                const u8array = Uint8Array.from(atob(savedData), c => c.charCodeAt(0));
+                db = new SQL.Database(u8array);
+                document.getElementById('dbStatus').innerText = "SQLite: Conectado";
+                document.getElementById('dbStatus').className = "badge bg-success status-badge";
+            } else {
+                // Crear nueva DB
+                db = new SQL.Database();
+                db.run("CREATE TABLE IF NOT EXISTS tareas (id INTEGER PRIMARY KEY AUTOINCREMENT, texto TEXT, hecha INTEGER DEFAULT 0);");
+                document.getElementById('dbStatus').innerText = "SQLite: Nueva DB";
+            }
+            
+            render();
+        } catch (err) {
+            console.error(err);
+            document.getElementById('dbStatus').innerText = "Error al cargar DB";
+            document.getElementById('dbStatus').className = "badge bg-danger status-badge";
+        }
     }
+
+    // --- OPERACIONES SQL (C.R.U.D) ---
 
     function addTask() {
         const input = document.getElementById('taskInput');
         const text = input.value.trim();
-        
-        if (text !== "") {
-            // SQL INSERT
+        if (text) {
             db.run("INSERT INTO tareas (texto) VALUES (?)", [text]);
             input.value = "";
-            renderTasks();
+            saveAndRefresh();
         }
     }
 
-    function toggleTask(id, currentState) {
-        const newState = currentState === 0 ? 1 : 0;
-        // SQL UPDATE
-        db.run("UPDATE tareas SET cumplida = ? WHERE id = ?", [newState, id]);
-        renderTasks();
+    function toggleTask(id, currentStatus) {
+        const newStatus = currentStatus === 1 ? 0 : 1;
+        db.run("UPDATE tareas SET hecha = ? WHERE id = ?", [newStatus, id]);
+        saveAndRefresh();
     }
 
     function deleteTask(id) {
-        // SQL DELETE
         db.run("DELETE FROM tareas WHERE id = ?", [id]);
-        renderTasks();
+        saveAndRefresh();
     }
 
-    function renderTasks() {
-        const list = document.getElementById('taskList');
-        list.innerHTML = "";
-
-        // SQL SELECT
-        const res = db.exec("SELECT * FROM tareas ORDER BY id DESC");
-        
-        if (res.length > 0) {
-            const columns = res[0].columns;
-            const values = res[0].values;
-
-            values.forEach(row => {
-                const id = row[0];
-                const texto = row[1];
-                const cumplida = row[2];
-
-                const li = document.createElement('li');
-                li.className = 'list-group-item d-flex justify-content-between align-items-center border-0 px-0';
-                li.innerHTML = `
-                    <div role="button" onclick="toggleTask(${id}, ${cumplida})">
-                        <span class="${cumplida ? 'completed' : ''}">
-                            ${cumplida ? '✅' : '🕒'} ${texto}
-                        </span>
-                    </div>
-                    <button class="btn btn-outline-danger btn-sm border-0" onclick="deleteTask(${id})">✕</button>
-                `;
-                list.appendChild(li);
-            });
+    function clearAll() {
+        if(confirm("¿Seguro que quieres borrar todas las tareas?")) {
+            db.run("DELETE FROM tareas");
+            saveAndRefresh();
         }
     }
 
-    // Iniciar la app
-    initDatabase();
+    // --- PERSISTENCIA Y RENDER ---
 
-    document.getElementById('taskInput').addEventListener('keypress', (e) => {
+    function saveAndRefresh() {
+        // Guardar estado en LocalStorage (Exportar DB binaria a Base64)
+        const binaryData = db.export();
+        const base64String = btoa(String.fromCharCode.apply(null, binaryData));
+        localStorage.setItem('sqlite_tasks_db', base64String);
+        
+        render();
+    }
+
+    function render() {
+        const list = document.getElementById('taskList');
+        list.innerHTML = "";
+        
+        // Consulta SQL para obtener tareas
+        const result = db.exec("SELECT * FROM tareas ORDER BY id DESC");
+        
+        if (result.length > 0) {
+            const rows = result[0].values;
+            document.getElementById('taskCount').innerText = `${rows.length} tareas registradas`;
+
+            rows.forEach(row => {
+                const [id, texto, hecha] = row;
+                const li = document.createElement('li');
+                li.className = "list-group-item d-flex justify-content-between align-items-center py-3";
+                li.innerHTML = `
+                    <div role="button" class="flex-grow-1" onclick="toggleTask(${id}, ${hecha})">
+                        <span class="${hecha ? 'completed' : ''}">
+                            ${hecha ? '✅' : '⚪'} ${texto}
+                        </span>
+                    </div>
+                    <button class="btn btn-link btn-sm text-danger text-decoration-none" onclick="deleteTask(${id})">Eliminar</button>
+                `;
+                list.appendChild(li);
+            });
+        } else {
+            document.getElementById('taskCount').innerText = "0 tareas registradas";
+            list.innerHTML = "<li class='list-group-item text-center text-muted'>No hay tareas pendientes</li>";
+        }
+    }
+
+    // Manejo de teclado (Enter)
+    document.getElementById('taskInput').addEventListener('keyup', (e) => {
         if (e.key === 'Enter') addTask();
     });
+
+    // Iniciar
+    init();
 </script>
 
 </body>
