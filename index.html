@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Bootstrap + JS en un archivo</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <style>
+        /* Estilos personalizados opcionales */
+        body {
+            background-color: #f8f9fa;
+            padding-top: 50px;
+        }
+        .task-done {
+            text-decoration: line-through;
+            color: #6c757d;
+        }
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="row justify-content-center">
+            <div class="col-md-6">
+                <div class="card shadow">
+                    <div class="card-header bg-primary text-white">
+                        <h3 class="mb-0">Mi Lista de Tareas</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Formulario de entrada -->
+                        <div class="input-group mb-3">
+                            <input type="text" id="taskInput" class="form-control" placeholder="¿Qué hay que hacer?" aria-label="Nueva tarea">
+                            <button class="btn btn-success" type="button" id="addButton">Agregar</button>
+                        </div>
+
+                        <!-- Lista de elementos -->
+                        <ul class="list-group" id="taskList">
+                            <!-- Las tareas aparecerán aquí dinámicamente -->
+                        </ul>
+                    </div>
+                    <div class="card-footer text-center">
+                        <small class="text-muted">Bootstrap + Vanilla JS</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap 5 JS Bundle (incluye Popper) -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+    <!-- Tu Lógica de JavaScript -->
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            const input = document.getElementById('taskInput');
+            const btn = document.getElementById('addButton');
+            const list = document.getElementById('taskList');
+
+            // Función para añadir tarea
+            const addTask = () => {
+                const text = input.value.trim();
+                
+                if (text !== "") {
+                    const li = document.createElement('li');
+                    li.className = 'list-group-item d-flex justify-content-between align-items-center animate__animated animate__fadeIn';
+                    
+                    li.innerHTML = `
+                        <span>${text}</span>
+                        <div>
+                            <button class="btn btn-sm btn-outline-secondary me-2 done-btn">✓</button>
+                            <button class="btn btn-sm btn-outline-danger delete-btn">✕</button>
+                        </div>
+                    `;
+
+                    list.appendChild(li);
+                    input.value = ""; // Limpiar input
+                    input.focus();
+
+                    // Evento para marcar como hecho
+                    li.querySelector('.done-btn').addEventListener('click', () => {
+                        li.querySelector('span').classList.toggle('task-done');
+                    });
+
+                    // Evento para borrar
+                    li.querySelector('.delete-btn').addEventListener('click', () => {
+                        li.remove();
+                    });
+                } else {
+                    alert("Por favor, escribe algo.");
+                }
+            };
+
+            // Escuchar click
+            btn.addEventListener('click', addTask);
+
+            // Escuchar tecla Enter
+            input.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter') addTask();
+            });
+        });
+    </script>
+</body>
+</html>
