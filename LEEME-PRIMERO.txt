@@ -1,0 +1,58 @@
+BITÁCORA INDUSTRIAL
+===================
+
+ANTES DE EMPEZAR
+----------------
+1. Descomprime o crea la carpeta bitacora_industrial.
+2. Guarda todos los archivos respetando sus nombres y extensiones.
+3. No incluyas sql.js.
+4. Haz una copia de seguridad de la base de datos Supabase.
+
+ORDEN DE CONFIGURACIÓN
+---------------------
+1. Revisar supabaseClient.js.
+2. Ejecutar supabase_setup.sql en Supabase SQL Editor.
+3. Crear las cuentas en Supabase Authentication > Users.
+4. Asignar los nombres de usuario y roles en public.profiles.
+5. Configurar los secretos de la Edge Function.
+6. Desplegar login-username.
+7. Publicar los cuatro archivos web en GitHub Pages.
+
+ARCHIVOS QUE SE PUBLICAN EN GITHUB PAGES
+----------------------------------------
+index.html
+style.css
+app.js
+supabaseClient.js
+
+ARCHIVOS QUE NO SE PUBLICAN EN GITHUB PAGES
+-------------------------------------------
+supabase_setup.sql
+supabase/config.toml
+supabase/functions/login-username/index.ts
+
+REGLAS DE ACCESO
+----------------
+Visitante:
+- Puede consultar las tareas.
+- No puede registrar, editar ni eliminar.
+
+Usuario autenticado:
+- Puede consultar.
+- Puede registrar.
+- Puede editar.
+- Puede cambiar estados.
+- No puede eliminar.
+
+Administrador:
+- Puede consultar.
+- Puede registrar.
+- Puede editar.
+- Puede cambiar estados.
+- Puede eliminar.
+
+IMPORTANTE
+----------
+Nunca publiques la clave SERVICE_ROLE.
+No elimines la tabla administradores hasta comprobar el nuevo acceso.
+No ejecutes cambios en la base de datos sin tener una copia de seguridad.
