@@ -1,0 +1,107 @@
+BITÁCORA INDUSTRIAL - ACTUALIZACIÓN
+===================================
+
+CONTENIDO
+---------
+index.html                         Interfaz responsive
+style.css                          Estilos modernos y adaptables
+app.js                             Lectura pública y operaciones autenticadas
+supabaseClient.js                  Cliente público de Supabase
+supabase_setup.sql                 Tablas/permisos/políticas RLS
+supabase/functions/login-username/index.ts
+                                   Edge Function de login con usuario
+supabase/config.toml               verify_jwt=false solo para login-username
+
+COMPORTAMIENTO
+--------------
+- Cualquier visitante puede leer todas las tareas del periodo seleccionado.
+- La lectura incluye pendiente, en_proceso y realizado.
+- Cualquier visitante puede cambiar el mes y consultar el historial.
+- Solo usuarios autenticados pueden registrar y editar/cambiar estados.
+- Solo perfiles con role='admin' pueden eliminar tareas.
+- La autorización real se ejecuta en PostgreSQL mediante RLS.
+- El tema claro/oscuro se guarda localmente como preferencia visual.
+- No se utiliza SQLite ni sql.js.
+
+PASOS DE INSTALACIÓN
+--------------------
+1. Haz una copia de seguridad de Supabase antes de cambiar políticas.
+
+2. Ejecuta supabase_setup.sql en Supabase > SQL Editor.
+   El script conserva las filas de public.tareas. Bloquea la tabla antigua
+   public.administradores, pero no la elimina todavía.
+
+3. En Supabase > Authentication > Users, crea cada cuenta con su correo
+   electrónico real y una contraseña nueva. Usa Auto Confirm User si está
+   disponible y corresponde a tu política de cuentas.
+
+4. Después de crear cada cuenta, ejecuta el UPDATE comentado al final del
+   SQL, indicando el correo real y el nombre de usuario. Asigna role='admin'
+   únicamente a la cuenta administradora; los demás deben ser 'user'.
+
+5. Despliega la Edge Function login-username usando Supabase CLI desde la
+   carpeta del proyecto Supabase (donde está supabase/config.toml):
+
+      supabase functions deploy login-username
+
+   La configuración incluida desactiva verify_jwt solo para esta función.
+
+6. Configura los secretos de Edge Functions (CLI):
+
+      supabase secrets set LOGIN_PUBLISHABLE_KEY=TU_PUBLISHABLE_KEY
+      supabase secrets set LOGIN_SERVICE_ROLE_KEY=TU_SECRET_KEY
+
+   LOGIN_PUBLISHABLE_KEY = publishable key del proyecto.
+   LOGIN_SERVICE_ROLE_KEY = secret/service_role key del proyecto.
+
+   SUPABASE_URL es provista por el entorno de Edge Functions.
+   NUNCA pongas LOGIN_SERVICE_ROLE_KEY en archivos del navegador.
+
+7. Publica index.html, style.css, app.js y supabaseClient.js en el mismo
+   directorio de GitHub Pages: https://wylnux.github.io/ .
+
+8. Prueba primero la lectura anónima, luego el login de user y admin, y
+   finalmente confirma que un user no puede borrar y un admin sí.
+
+IMPORTANTE SOBRE EL LOGIN
+-------------------------
+Supabase Auth autentica internamente con email/contraseña. La Edge Function
+resuelve el username al usuario Auth y delega la verificación de contraseña
+a Supabase Auth. El correo no se envía al navegador desde esta función.
+Cada cuenta debe tener un correo único y válido en Auth.
+
+CORS
+----
+La Edge Function solo permite el Origin https://wylnux.github.io.
+Si pruebas en localhost, añade temporalmente el Origin exacto usado por tu
+servidor local a ALLOWED_ORIGINS y vuelve a desplegar. No uses '*'.
+
+SEGURIDAD / LIMITACIONES
+------------------------
+- verify_jwt=false se aplica exclusivamente a login-username porque el
+  usuario aún no tiene sesión cuando inicia el acceso. La función valida
+  usuario/contraseña con Supabase Auth y devuelve la sesión.
+- CORS no es un sistema anti-bots ni evita llamadas directas desde scripts.
+  Configura y revisa los límites de solicitudes de Supabase Auth. Si más
+  adelante publicas bajo un dominio propio detrás de un WAF, añade también
+  rate limiting por IP para la función de inicio de sesión.
+- No guardes roles ni credenciales en localStorage. Supabase JS guarda la
+  sesión para poder renovarla; el rol se consulta desde profiles.
+- La tabla profiles solo permite que cada usuario lea su propio perfil.
+  No tiene políticas de INSERT/UPDATE/DELETE para usuarios autenticados.
+- No elimines public.administradores hasta verificar las nuevas cuentas.
+  Después de confirmar que todo funciona, elimina la tabla antigua y sus
+  datos sensibles con una operación separada y consciente.
+- Los permisos visuales de app.js mejoran la interfaz, pero no sustituyen
+  las políticas RLS. Nunca confíes solo en ocultar botones.
+
+VERIFICACIONES MANUALES
+-----------------------
+A. Abrir el sitio en una ventana privada: las tareas deben aparecer sin login.
+B. Cambiar de mes: deben verse los registros históricos de ese mes.
+C. Sin login: no deben aparecer el formulario de registro ni botones de edición.
+D. Iniciar sesión como user: debe aparecer el formulario y las acciones de
+   edición/estado; no debe aparecer eliminar.
+E. Intentar borrar desde la API como user: PostgreSQL debe rechazarlo por RLS.
+F. Iniciar sesión como admin: debe aparecer eliminar y permitir borrar.
+G. Cerrar sesión: debe volver a la vista pública y seguir mostrando las tareas.
