@@ -3,7 +3,7 @@
 // la service_role key ni una secret key.
 
 const SUPABASE_URL = 'https://qtmvbmrfbsuqqmytkvzj.supabase.co';
-const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_sc3r_b8nQTVToih_Yw58JA_eCEqW8of';
+const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_vEgjmMkxcIzrrPbiW61aYA_a97sbzqY';
 
 const { createClient } = supabase;
 
