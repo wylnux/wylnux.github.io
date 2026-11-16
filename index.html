@@ -1,187 +1,142 @@
-<!DOCTYPE html>
-<html lang="es" data-bs-theme="light">
+<!doctype html>
+<html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0d6efd">
-    <meta name="description" content="Bitácora industrial pública para consultar tareas de mantenimiento por periodo y estado.">
-    <title>Bitácora Industrial | Mantenimiento</title>
-
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-    <link href="style.css" rel="stylesheet">
-
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#10243a">
+  <title>Bitácora Industrial</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="supabaseClient.js"></script>
+  <script src="app.js" defer></script>
 </head>
 <body>
-<nav class="navbar navbar-expand-lg app-navbar sticky-top" aria-label="Navegación principal">
-    <div class="container">
-        <a class="navbar-brand d-flex align-items-center gap-2 fw-bold" href="./">
-            <span class="brand-icon" aria-hidden="true">✓</span>
-            <span>Bitácora <span class="brand-light">Industrial</span></span>
-        </a>
-        <div class="navbar-actions d-flex align-items-center gap-2">
-            <span id="dbStatus" class="badge bg-secondary status-badge" aria-live="polite">Conectando…</span>
-            <button id="themeToggleBtn" class="btn btn-sm btn-outline-secondary" type="button" onclick="toggleTheme()">🌙 Oscuro</button>
-            <button id="loginBtn" class="btn btn-sm btn-primary" type="button" data-bs-toggle="modal" data-bs-target="#loginModal">Iniciar sesión</button>
-            <button id="logoutBtn" class="btn btn-sm btn-outline-danger d-none" type="button" onclick="logoutAdmin()">Salir <span id="adminUsernameDisplay"></span></button>
-        </div>
+  <header class="topbar">
+    <a class="brand" href="#"><span class="brand-mark">BI</span><span><strong>BITÁCORA</strong><small>GESTIÓN DE MANTENIMIENTO</small></span></a>
+    <div class="top-actions">
+      <span id="connectionState" class="connection"><i></i> Conectando...</span>
+      <button id="themeButton" class="icon-button" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+      <button id="loginOpenButton" class="button button-outline">Iniciar sesión</button>
+      <div id="userMenu" class="user-menu hidden">
+        <span id="userLabel"></span>
+        <button id="logoutButton" class="button button-outline button-small">Salir</button>
+      </div>
     </div>
-</nav>
+  </header>
 
-<main class="container app-container py-4 py-lg-5">
-    <header class="page-heading mb-4">
-        <div>
-            <div class="eyebrow">CONTROL OPERATIVO · MANTENIMIENTO</div>
-            <h1>Bitácora de mantenimiento</h1>
-            <p>Consulta el historial de actividades, revisa pendientes y da seguimiento a los trabajos realizados.</p>
-        </div>
-        <div class="public-indicator"><span class="online-dot"></span> Consulta pública</div>
-    </header>
-
-    <div id="appMessage" class="alert d-none" role="status" aria-live="polite"></div>
-
-    <section class="stats-grid mb-4" aria-label="Resumen del periodo">
-        <article class="stat-card stat-pending">
-            <span class="stat-label">Pendientes</span>
-            <strong id="count-pendiente">0</strong>
-            <span class="stat-foot">Por atender</span>
-        </article>
-        <article class="stat-card stat-progress">
-            <span class="stat-label">En proceso</span>
-            <strong id="count-en_proceso">0</strong>
-            <span class="stat-foot">En ejecución</span>
-        </article>
-        <article class="stat-card stat-done">
-            <span class="stat-label">Realizadas</span>
-            <strong id="count-realizado">0</strong>
-            <span class="stat-foot">Finalizadas</span>
-        </article>
+  <main class="container">
+    <section class="hero">
+      <div>
+        <p class="eyebrow">CONTROL OPERATIVO</p>
+        <h1>Bitácora de mantenimiento</h1>
+        <p class="muted">Registro, seguimiento e historial de trabajos de mantenimiento.</p>
+      </div>
+      <div class="hero-actions">
+        <button id="newTaskButton" class="button button-primary" disabled>＋ Nueva tarea</button>
+        <button id="pdfButton" class="button button-outline">Exportar PDF</button>
+        <button id="csvButton" class="button button-outline">Exportar CSV</button>
+      </div>
     </section>
 
-    <section id="mainCard" class="surface-card mb-4" aria-labelledby="tasksHeading">
-        <div class="section-heading">
-            <div>
-                <div class="eyebrow">REGISTRO E HISTORIAL</div>
-                <h2 id="tasksHeading">Actividades del periodo</h2>
-                <p id="publicViewHint" class="text-muted small mb-0">Estás en modo consulta. Inicia sesión para registrar o modificar tareas.</p>
-            </div>
-            <div class="section-tools">
-                <span id="taskCount" class="record-count">0 entradas</span>
-                <div class="dropdown">
-                    <button class="btn btn-sm btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">Exportar PDF</button>
-                    <ul class="dropdown-menu dropdown-menu-end shadow">
-                        <li><button class="dropdown-item" type="button" onclick="exportPDF('todos')">Todas las tareas</button></li>
-                        <li><button class="dropdown-item" type="button" onclick="exportPDF('pendientes')">Pendientes y en proceso</button></li>
-                        <li><button class="dropdown-item" type="button" onclick="exportPDF('realizados')">Realizadas</button></li>
-                    </ul>
-                </div>
-                <button id="clearAllBtn" class="btn btn-sm btn-outline-danger d-none" type="button" onclick="clearAll()">Borrar periodo</button>
-            </div>
-        </div>
-
-        <div id="taskEditorSection" class="task-editor d-none">
-            <div class="editor-heading">
-                <div>
-                    <strong>Nueva entrada operativa</strong>
-                    <span>Completa los datos de la actividad.</span>
-                </div>
-                <span class="editor-lock">Sesión autenticada</span>
-            </div>
-            <div class="mb-2">
-                <label for="taskInput" class="form-label visually-hidden">Título de la tarea</label>
-                <input type="text" id="taskInput" class="form-control" placeholder="Título de la tarea (ej. Calibración de sensor)" maxlength="250" required>
-            </div>
-            <div class="mb-2">
-                <label for="taskDescInput" class="form-label visually-hidden">Descripción</label>
-                <textarea id="taskDescInput" class="form-control" rows="2" placeholder="Descripción o detalle técnico (opcional)"></textarea>
-            </div>
-            <div class="row g-2">
-                <div class="col-12 col-md-4"><label for="taskArea" class="form-label small">Área</label><input type="text" id="taskArea" class="form-control" placeholder="Área"></div>
-                <div class="col-12 col-md-4"><label for="taskFamilia" class="form-label small">Familia</label><input type="text" id="taskFamilia" class="form-control" placeholder="Familia"></div>
-                <div class="col-12 col-md-4"><label for="taskEquipo" class="form-label small">Equipo</label><input type="text" id="taskEquipo" class="form-control" placeholder="Equipo"></div>
-            </div>
-            <button id="addTaskBtn" class="btn btn-primary mt-3" type="button" onclick="addTask()">＋ Registrar tarea</button>
-        </div>
-
-        <div class="period-toolbar">
-            <div id="monthSelectorContainer" class="d-flex align-items-center gap-2 flex-wrap">
-                <label for="filtroMes" class="form-label mb-0 small fw-semibold">Periodo:</label>
-                <input type="month" id="filtroMes" class="form-control form-control-sm month-input" aria-label="Seleccionar periodo">
-                <button id="arrastrarPendientesBtn" class="btn btn-sm btn-outline-primary d-none" type="button">Copiar pendientes del mes anterior</button>
-            </div>
-            <span class="period-note">Los registros son visibles para todos.</span>
-        </div>
-
-        <ul id="taskList" class="list-group task-list" aria-label="Listado de tareas">
-            <li class="list-group-item text-center text-muted py-4">Cargando bitácora…</li>
-        </ul>
+    <section class="stats-grid" aria-label="Resumen de tareas">
+      <article class="stat-card"><span class="stat-label">Total de tareas</span><strong id="statTotal">—</strong><span class="stat-foot">En el filtro actual</span></article>
+      <article class="stat-card"><span class="stat-label">Pendientes</span><strong id="statPending">—</strong><span class="stat-foot">Por atender</span></article>
+      <article class="stat-card"><span class="stat-label">En proceso</span><strong id="statProgress">—</strong><span class="stat-foot">Trabajos activos</span></article>
+      <article class="stat-card"><span class="stat-label">Realizadas</span><strong id="statDone">—</strong><span class="stat-foot">Trabajos finalizados</span></article>
     </section>
 
-    <footer class="app-footer">
-        <span>Bitácora Industrial</span>
-        <span>Datos alojados en Supabase · PostgreSQL</span>
-    </footer>
-</main>
+    <section class="panel filters-panel">
+      <div class="panel-heading"><div><p class="eyebrow">CONSULTA</p><h2>Buscar tareas</h2></div><button id="clearFiltersButton" class="text-button">Limpiar filtros</button></div>
+      <div class="filters-grid">
+        <label class="field field-wide">Buscar
+          <input id="searchInput" type="search" placeholder="Código, título, equipo o descripción...">
+        </label>
+        <label class="field">Estado
+          <select id="statusFilter"><option value="">Todos</option><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="realizado">Realizada</option><option value="cancelado">Cancelada</option></select>
+        </label>
+        <label class="field">Área
+          <select id="areaFilter"><option value="">Todas las áreas</option></select>
+        </label>
+        <label class="field">Prioridad
+          <select id="priorityFilter"><option value="">Todas</option><option value="critica">Crítica</option><option value="alta">Alta</option><option value="media">Media</option><option value="baja">Baja</option></select>
+        </label>
+        <label class="field">Desde
+          <input id="dateFromFilter" type="date">
+        </label>
+        <label class="field">Hasta
+          <input id="dateToFilter" type="date">
+        </label>
+      </div>
+    </section>
 
-<!-- Acceso -->
-<div class="modal fade" id="loginModal" tabindex="-1" aria-labelledby="loginModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <form id="loginForm">
-                <div class="modal-header">
-                    <div><div class="eyebrow">ÁREA DE USUARIOS</div><h2 class="modal-title fs-5" id="loginModalLabel">Iniciar sesión</h2></div>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button>
-                </div>
-                <div class="modal-body">
-                    <p class="text-muted small">La consulta de la bitácora es pública. Inicia sesión para registrar o modificar actividades.</p>
-                    <div id="loginErrorMsg" class="alert alert-danger d-none py-2 small" role="alert" aria-live="assertive"></div>
-                    <div class="mb-3"><label for="adminUser" class="form-label">Nombre de usuario</label><input type="text" class="form-control" id="adminUser" autocomplete="username" required></div>
-                    <div><label for="adminPassword" class="form-label">Contraseña</label><input type="password" class="form-control" id="adminPassword" autocomplete="current-password" required></div>
-                </div>
-                <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button id="loginSubmitBtn" type="submit" class="btn btn-primary">Iniciar sesión</button></div>
-            </form>
-        </div>
-    </div>
-</div>
+    <section class="panel tasks-panel">
+      <div class="panel-heading">
+        <div><p class="eyebrow">REGISTRO</p><h2>Trabajos registrados</h2></div>
+        <span id="resultCount" class="result-count">0 registros</span>
+      </div>
+      <div id="taskList" class="task-list"><div class="loading">Cargando tareas...</div></div>
+      <div id="emptyState" class="empty-state hidden"><div class="empty-icon">▤</div><h3>No hay tareas para mostrar</h3><p>Prueba cambiando los filtros o registra una nueva tarea.</p></div>
+    </section>
+    <p class="public-note">La consulta de tareas es pública. Para registrar o modificar información debes iniciar sesión.</p>
+  </main>
 
-<!-- Cambiar estado -->
-<div class="modal fade" id="completeModal" tabindex="-1" aria-labelledby="completeModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header"><h2 class="modal-title fs-5" id="completeModalLabel">Actualizar estado</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-            <div class="modal-body">
-                <input type="hidden" id="modalTaskId">
-                <div class="mb-3"><label for="modalStatusSelect" class="form-label">Estado de la tarea</label><select class="form-select" id="modalStatusSelect"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="realizado">Realizada</option></select></div>
-                <div class="mb-3"><label for="modalAuthor" class="form-label">Responsable</label><input type="text" class="form-control" id="modalAuthor" placeholder="Nombre del responsable"></div>
-                <div><label for="modalComment" class="form-label">Observaciones</label><textarea class="form-control" id="modalComment" rows="3" placeholder="Comentarios técnicos"></textarea></div>
-            </div>
-            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" onclick="saveTaskStatus()">Guardar cambios</button></div>
-        </div>
-    </div>
-</div>
+  <!-- Modal de tarea -->
+  <dialog id="taskDialog" class="modal">
+    <form id="taskForm" class="modal-card">
+      <div class="modal-heading"><div><p class="eyebrow">GESTIÓN DE TRABAJO</p><h2 id="taskDialogTitle">Nueva tarea</h2></div><button type="button" class="close-button" data-close="taskDialog">×</button></div>
+      <input type="hidden" id="taskId">
+      <div class="form-grid">
+        <label class="field field-wide">Título del trabajo *
+          <input id="taskTitle" required maxlength="180" placeholder="Ej. Inspección de tablero eléctrico">
+        </label>
+        <label class="field field-wide">Descripción
+          <textarea id="taskDescription" rows="3" placeholder="Detalle del trabajo, falla o actividad..."></textarea>
+        </label>
+        <label class="field">Área *
+          <select id="taskArea" required><option value="">Seleccionar área</option></select>
+        </label>
+        <label class="field">Equipo
+          <select id="taskEquipment"><option value="">Sin equipo específico</option></select>
+        </label>
+        <label class="field">Familia / sistema
+          <input id="taskFamily" maxlength="100" placeholder="Ej. Eléctrico, mecánico...">
+        </label>
+        <label class="field">Tipo de mantenimiento
+          <select id="taskType"><option value="correctivo">Correctivo</option><option value="preventivo">Preventivo</option><option value="predictivo">Predictivo</option><option value="inspeccion">Inspección</option><option value="mejora">Mejora</option></select>
+        </label>
+        <label class="field">Prioridad
+          <select id="taskPriority"><option value="media">Media</option><option value="baja">Baja</option><option value="alta">Alta</option><option value="critica">Crítica</option></select>
+        </label>
+        <label class="field">Estado
+          <select id="taskStatus"><option value="pendiente">Pendiente</option><option value="en_proceso">En proceso</option><option value="realizado">Realizada</option><option value="cancelado">Cancelada</option></select>
+        </label>
+        <label class="field">Fecha programada
+          <input id="taskScheduled" type="date">
+        </label>
+        <label class="field">Responsable
+          <input id="taskResponsible" maxlength="120" placeholder="Nombre del responsable">
+        </label>
+        <label class="field field-wide">Observaciones
+          <textarea id="taskNotes" rows="2" placeholder="Materiales, resultados o recomendaciones..."></textarea>
+        </label>
+      </div>
+      <div class="modal-actions"><button type="button" class="button button-outline" data-close="taskDialog">Cancelar</button><button type="submit" class="button button-primary">Guardar tarea</button></div>
+    </form>
+  </dialog>
 
-<!-- Editar tarea -->
-<div class="modal fade" id="editModal" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered">
-        <div class="modal-content">
-            <div class="modal-header"><h2 class="modal-title fs-5" id="editModalLabel">Editar tarea</h2><button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Cerrar"></button></div>
-            <div class="modal-body">
-                <input type="hidden" id="editTaskId">
-                <div class="mb-3"><label for="editTaskInputText" class="form-label">Título</label><input type="text" class="form-control" id="editTaskInputText" maxlength="250"></div>
-                <div class="mb-3"><label for="editTaskInputDesc" class="form-label">Descripción</label><textarea class="form-control" id="editTaskInputDesc" rows="3"></textarea></div>
-                <div class="row g-2"><div class="col-12 col-md-4"><label for="editTaskArea" class="form-label">Área</label><input type="text" class="form-control" id="editTaskArea"></div><div class="col-12 col-md-4"><label for="editTaskFamilia" class="form-label">Familia</label><input type="text" class="form-control" id="editTaskFamilia"></div><div class="col-12 col-md-4"><label for="editTaskEquipo" class="form-label">Equipo</label><input type="text" class="form-control" id="editTaskEquipo"></div></div>
-            </div>
-            <div class="modal-footer"><button type="button" class="btn btn-light" data-bs-dismiss="modal">Cancelar</button><button type="button" class="btn btn-primary" onclick="saveEditedTask()">Guardar cambios</button></div>
-        </div>
-    </div>
-</div>
+  <!-- Modal de acceso -->
+  <dialog id="loginDialog" class="modal">
+    <form id="loginForm" class="modal-card login-card">
+      <div class="modal-heading"><div><p class="eyebrow">ACCESO SEGURO</p><h2>Iniciar sesión</h2></div><button type="button" class="close-button" data-close="loginDialog">×</button></div>
+      <p class="muted">Utiliza el correo y la contraseña registrados en Supabase Auth.</p>
+      <label class="field">Correo electrónico<input id="loginEmail" type="email" autocomplete="username" required placeholder="usuario@empresa.com"></label>
+      <label class="field">Contraseña<input id="loginPassword" type="password" autocomplete="current-password" required></label>
+      <p id="loginError" class="form-error hidden"></p>
+      <div class="modal-actions"><button type="button" class="button button-outline" data-close="loginDialog">Cancelar</button><button type="submit" class="button button-primary">Ingresar</button></div>
+    </form>
+  </dialog>
 
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-<script src="supabaseClient.js"></script>
-<script src="app.js"></script>
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
 </body>
 </html>
